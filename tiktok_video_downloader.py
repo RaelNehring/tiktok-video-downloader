@@ -67,8 +67,6 @@ def baixaVideo(link, id):
         'tt': 'a2pVYXRi',
     }
     
-
-    print(f"Baixando video {id} de: {link}")
     print("ETAPA 4: Buscando o link para download")
     print("Caso a etapa 4 dê erro, é necessário verificar cookies, headers, params e data")
     response = requests.post('https://ssstik.io/abc', params=params, cookies=cookies, headers=headers, data=data)
@@ -107,6 +105,31 @@ def espera_aleatoria(valor_inicial=1, valor_final=3):
     :type valor_final: int
     """
     return sleep(randint(valor_inicial, valor_final))
+
+def converter_views(str_views):
+    if 'K' in str_views:
+        return float(str_views.replace('K', '').replace(',', '')) * 1000
+    elif 'M' in str_views:
+        return float(str_views.replace('M', '').replace(',', '')) * 1000000
+    else:
+        return float(str_views.replace(',', ''))
+
+def carrega_toda_pagina(driver):
+    # Inicializa a altura atual da página
+    ultima_altura = driver.execute_script("return document.body.scrollHeight")
+
+    while True:
+        # Scroll até o final da página
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        espera_aleatoria(valor_inicial=5, valor_final=7)
+
+        nova_altura = driver.execute_script("return document.body.scrollHeight")
+
+        # Se a altura não mudou, chegou ao final
+        if nova_altura == ultima_altura:
+            break
+
+        ultima_altura = nova_altura
 
 if __name__ == '__main__':
 
@@ -153,32 +176,31 @@ if __name__ == '__main__':
     # sleep(30)
 
     # Dando Scroll até o final da página
-    screen_height = driver.execute_script("return window.screen.height;")
-    i = 1
+    carrega_toda_pagina(driver)
 
-    print("ETAPA 2: Carregando toda a página")
-    while True:
-        driver.execute_script("window.scrollTo(0, {screen_height}*{i});".format(screen_height=screen_height, i=i))  
-        i += 1
-        espera_aleatoria(3,5)
-        scroll_height = driver.execute_script("return document.body.scrollHeight;")  
-        if (screen_height) * i > scroll_height:
-            break 
+    # Classe da div que contém o elemento <a>
+    classe_div = "css-1as5cen-DivWrapper"
 
-    # Classe da div que contem o elemento <a>
-    className = "css-1as5cen-DivWrapper"
-
-    # Montando script para listar as Urls dos vídeos
-    script  = "let l = [];"
-    script += "document.getElementsByClassName(\""
-    script += className
-    script += "\").forEach(item => { l.push(item.querySelector('a').href)});"
-    script += "return l;"
+    # Montando script para listar as URLs dos vídeos e valores da tag <strong>
+    script  = "let data = [];"
+    script += f"document.getElementsByClassName(\"{classe_div}\").forEach(item => {{"
+    script +=     "let url = item.querySelector('a').href;"
+    script +=     "let countElement = item.querySelector('.video-count');"
+    script +=     "let countText = countElement ? countElement.innerText : '0';"
+    script +=     "data.push({url, countText});"
+    script += "});"
+    script += "return data;"
 
     # Executando Script
-    urlsDosVideos = driver.execute_script(script)
+    listaVideos = driver.execute_script(script)
 
-    print(f"ETAPA 3: Inciando processo de download {len(urlsDosVideos)} videos")
-    for i, url in enumerate(urlsDosVideos):
+    # Ordenando a lista com base nas views
+    listaVideos.sort(key=lambda x: converter_views(x['countText']), reverse=True)
+
+    print(f"ETAPA 3: Iniciando processo de download {len(listaVideos)} vídeos")
+    for i, data in enumerate(listaVideos):
+        url = data['url']
+        views = data['countText']
+        print(f"Baixando video {i} com {views} de de: {url}")
         baixaVideo(url, i)
-        espera_aleatoria(10,12) # Espera de 10 à 12s para iniciar o próximo download
+        espera_aleatoria(10, 12)  # Espera de 10 a 12s para iniciar o próximo download
